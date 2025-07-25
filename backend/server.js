@@ -43,10 +43,7 @@ app.get("/transactions", (req, res) => {
 app.post("/transactions", async (req, res) => {
   try {
     // 1) Build base transaction
-    const txData = {
-      ...req.body,
-      created_at: new Date().toISOString(),
-    };
+    const { ...txData } = req.body;
 
     // 2) Forward to Flask ML service
     const flaskRes = await axios.post(FLASK_URL, txData);
@@ -55,9 +52,9 @@ app.post("/transactions", async (req, res) => {
     // 3) Enrich and persist
     const tx = new Transaction({
       ...txData,
-      risk,
-      probabilities: JSON.stringify(probabilities),
-      flags: JSON.stringify(flags),
+      risk_level:risk,
+      // probabilities: JSON.stringify(probabilities),
+      is_fraud: flags,
     });
 
     const transactions = readTransactions();
@@ -68,9 +65,9 @@ app.post("/transactions", async (req, res) => {
     res.status(201).json(tx);
 
   } catch (err) {
-    console.error("Error forwarding to Flask:", err.message);
-    const status = err.response?.status || 500;
-    const errorMsg = err.response?.data?.error || "Internal server error";
+    console.error("❌ Full error object:", err.response?.data || err);
+    const status   = err.response?.status || 500;
+    const errorMsg = err.response?.data?.error  || err.message || "Internal server error";
     res.status(status).json({ error: errorMsg });
   }
 });

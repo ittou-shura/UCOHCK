@@ -19,22 +19,14 @@ import {
 } from "recharts";
 
 // Sample card data
-const cards = [
+const card = 
   {
     id: 1,
-    balance: "₹5,756",
-    holder: "Eddy Cusuma",
+    balance: "₹502,756",
+    holder: "John Doe",
     valid: "12/22",
     theme: "from-blue-600 to-blue-400",
-  },
-  {
-    id: 2,
-    balance: "₹3,210",
-    holder: "Alex Morgan",
-    valid: "11/23",
-    theme: "from-yellow-500 to-yellow-300",
-  },
-];
+  };
 
 const balanceData = [
   { day: "Mon", balance: 500 },
@@ -71,7 +63,7 @@ export default function DashboardPage() {
           <section className="mb-8">
             <h2 className="text-xl font-bold mb-4">My Cards</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {cards.map((card) => (
+              {
                 <motion.div
                   key={card.id}
                   whileHover={{ scale: 1.03 }}
@@ -94,7 +86,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </motion.div>
-              ))}
+              }
             </div>
           </section>
 
