@@ -47,14 +47,14 @@ app.post("/transactions", async (req, res) => {
 
     // 2) Forward to Flask ML service
     const flaskRes = await axios.post(FLASK_URL, txData);
-    const { risk, probabilities, flags } = flaskRes.data;
+    const { risk, probabilities, flags, is_fraud } = flaskRes.data;
 
     // 3) Enrich and persist
     const tx = new Transaction({
       ...txData,
       risk_level:risk,
       // probabilities: JSON.stringify(probabilities),
-      is_fraud: flags,
+      is_fraud: is_fraud,
     });
 
     const transactions = readTransactions();

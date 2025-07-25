@@ -11,10 +11,11 @@ def assess_transaction():
 
     # Optional: normalize ISO timestamp → hour
     t = data.get("time")
+    print(data)
     if isinstance(t, str):
         t = datetime.fromisoformat(t.rstrip("Z")).hour
-        data["time"] = t
-
+        print(f"t is {t}")
+        data["time"] = t+12
     try:
         result = assess(data, models)
         risk = result["risk"]
@@ -22,11 +23,12 @@ def assess_transaction():
             "risk":          risk,
             "probabilities": result["probs"],
             "flags":         result["flags"],
+            "is_fraud" : False
         }
 
-        if risk == "High":
+        if risk == "High Risk":
             response["is_fraud"] = True
-
+        # print(response)
         return jsonify(response)
 
     except Exception as e:
