@@ -39,7 +39,7 @@ warnings.filterwarnings("ignore")
 
 # ------------------------------------------------ CONFIG
 DATA_PATH      = Path("data.csv")
-SAFE_LOCATIONS = {"Kolkata"}        # trusted locations in training set
+SAFE_LOCATIONS = {"Kolkata","Kolkata, West Bengal", "kolkata"}        # trusted locations in training set
 RAND_SEED      = 42
 NN_EPOCHS      = 60
 NN_BATCH       = 32

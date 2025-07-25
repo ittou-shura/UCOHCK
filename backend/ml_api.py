@@ -19,6 +19,7 @@ def assess_transaction():
     try:
         result = assess(data, models)
         risk = result["risk"]
+        risk = risk.replace(" Risk", "")
         response = {
             "risk":          risk,
             "probabilities": result["probs"],
@@ -26,7 +27,7 @@ def assess_transaction():
             "is_fraud" : False
         }
 
-        if risk == "High Risk":
+        if risk == "High":
             response["is_fraud"] = True
         # print(response)
         return jsonify(response)

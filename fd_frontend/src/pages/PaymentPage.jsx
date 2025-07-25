@@ -1,74 +1,110 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
 import creditCardImg from "../assets/credit-card.png";
+import toast from "react-hot-toast";
 
 export default function PaymentPage() {
   const [receiver, setReceiver]     = useState("");
   const [amount, setAmount]         = useState("");
-  const [riskResult, setRiskResult] = useState(null);
+  const [risk, setRisk]             = useState(null);
   const [error, setError]           = useState("");
+  const [otpSent, setOtpSent]       = useState(false);
+  const [otp, setOtp]               = useState("");
+  const [verifying, setVerifying]   = useState(false);
+  const [pendingTx, setPendingTx]   = useState(null);
+
+  useEffect(() => {
+    if (!risk) return;
+    if (risk === "Low") {
+      toast.success("Payment successful!");
+      resetForm();
+    } else if (risk === "High") {
+      toast.error("Payment blocked");
+      resetForm();
+    } else if (risk === "Medium") {
+      setOtpSent(true);
+      toast("OTP sent to your phone. Please verify.", { icon: "🔑" });
+    }
+  }, [risk]);
+
+  const resetForm = () => {
+    setReceiver("");
+    setAmount("");
+    setRisk(null);
+    setOtpSent(false);
+    setOtp("");
+    setPendingTx(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setRiskResult(null);
-
+    setRisk(null);
     try {
-      // 1) Client IP
       const ipRes = await fetch("https://api.ipify.org?format=json");
       const { ip } = await ipRes.json();
-
-      // 2) Location lookup
-      const locRes  = await fetch(`https://ipapi.co/${ip}/json/`);
+      const locRes = await fetch(`https://ipapi.co/${ip}/json/`);
       const locData = await locRes.json();
       const location = `${locData.city || ""}, ${locData.region || ""}`;
-
-      // 3) Build & send payload
-      const payload = {
-        sender: "You",
-        receiver,
-        amount: parseInt(amount, 10),
-        time: new Date().toISOString(),
-        ip_address: ip,
-        location,
-      };
-      // console.log("⏳ Sending payload:", payload);
-
       const res = await fetch("http://localhost:5000/transactions", {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
+        body: JSON.stringify({
+          sender: "You",
+          receiver,
+          amount: parseInt(amount, 10),
+          time: new Date().toISOString(),
+          ip_address: ip,
+          location,
+        }),
       });
-
-      // 4) Parse response
       const data = await res.json();
-      console.log("API response:", data);
-
-      if (!res.ok) {
-        throw new Error(data.error || `Status ${res.status}`);
-      }
-
-      // 5) Normalize
-      const rawProbs = data.probabilities ?? data.probs;
-      const rawFlags = data.flags;
-      const probabilities = 
-        typeof rawProbs === "string" ? JSON.parse(rawProbs) : rawProbs;
-      const flags = 
-        typeof rawFlags === "string" ? JSON.parse(rawFlags) : rawFlags;
-
-      // 6) Store & reset
-      setRiskResult({ risk: data.risk, probabilities, flags });
-      setReceiver("");
-      setAmount("");
+      if (!res.ok) throw new Error(data.error || `Status ${res.status}`);
+      if (data.otp_sent) setPendingTx(data.tx);
+      setRisk(data.tx?.risk_level);
     } catch (err) {
-      console.error("Error in handleSubmit:", err);
+      console.error(err);
       setError(err.message);
+      toast.error(err.message);
     }
   };
 
-  const fmt = (val) => typeof val === "number" ? val.toFixed(3) : "--";
+  const handleVerify = async () => {
+    setVerifying(true);
+    try {
+      const res = await fetch("http://localhost:5000/verify-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // --- REMOVE THE LINE BELOW ---
+          // to: process.env.NEXT_PUBLIC_OTP_RECIPIENT,
+          
+          // --- KEEP THESE TWO LINES ---
+          code: otp,
+          transaction: pendingTx,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        toast.success("Payment successful!");
+      } else {
+        toast.error(data.error || "Payment blocked");
+      }
+    } catch (err) {
+      console.error("Verification fetch failed:", err);
+      let errorMessage = "Payment blocked after verification attempt.";
+      if (err instanceof SyntaxError) {
+        errorMessage = "Server returned an invalid response. Check server logs.";
+      }
+      toast.error(errorMessage);
+    } finally {
+      setVerifying(false);
+      resetForm();
+    }
+  };
 
+  // No changes to JSX
   return (
     <div className="flex">
       <Sidebar />
@@ -84,50 +120,45 @@ export default function PaymentPage() {
               <div>
                 <label className="block text-sm font-medium text-white">Pay To</label>
                 <input
-                  type="text"
-                  value={receiver}
-                  onChange={(e) => setReceiver(e.target.value)}
-                  placeholder="Anjul Dandekar"
-                  className="mt-1 w-full px-4 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-yellow-400"
-                  required
+                  type="text" value={receiver} onChange={(e) => setReceiver(e.target.value)}
+                  className="mt-1 w-full px-4 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-yellow-400 text-white placeholder-gray-300"
+                  required disabled={Boolean(otpSent)}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-white">Amount (₹)</label>
                 <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="1500"
-                  className="mt-1 w-full px-4 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-yellow-400"
-                  required
+                  type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                  className="mt-1 w-full px-4 py-2 border border-blue-200 rounded focus:ring-2 focus:ring-yellow-400 text-white placeholder-gray-300"
+                  required disabled={Boolean(otpSent)}
                 />
               </div>
               <button
                 type="submit"
                 className="w-full bg-yellow-400 text-blue-900 py-2 rounded hover:bg-yellow-500"
+                disabled={Boolean(otpSent)}
               >
                 PAY
               </button>
             </form>
-
-            {error && <p className="text-red-400 mt-4">Error: {error}</p>}
-
-            {riskResult && (
-              <div className="mt-6 p-4 bg-gray-100 rounded">
-                <h3 className="font-semibold">Risk Assessment</h3>
-                <p>Risk: {riskResult.risk}</p>
-                <p>Probabilities:</p>
-                <ul className="list-disc list-inside">
-                  <li>XGB: {fmt(riskResult?.probabilities?.xgb)}</li>
-                  <li>NN:  {fmt(riskResult?.probabilities?.nn)}</li>
-                  <li>Ensemble: {fmt(riskResult?.probabilities?.ensemble)}</li>
-                </ul>
-                <p>Flags:</p>
-                <ul className="list-disc list-inside">
-                  <li>Amount/Time: {riskResult?.flags?.amount_time ? 'UNUSUAL' : 'normal'}</li>
-                  <li>Location:    {riskResult?.flags?.location    ? 'UNUSUAL' : 'normal'}</li>
-                </ul>
+            {error && <p className="text-red-500 mt-2">{error}</p>}
+            {otpSent && (
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-white">Enter OTP</label>
+                <div className="flex space-x-2 mt-2">
+                  <input
+                    type="text" value={otp} onChange={(e) => setOtp(e.target.value)}
+                    className="w-full px-4 py-2 border border-blue-200 rounded text-white placeholder-gray-300 focus:ring-2 focus:ring-yellow-400"
+                    placeholder="6-digit code"
+                  />
+                  <button
+                    onClick={handleVerify}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    disabled={verifying || otp.length !== 6 || !pendingTx}
+                  >
+                    {verifying ? "Verifying..." : "Verify"}
+                  </button>
+                </div>
               </div>
             )}
           </div>

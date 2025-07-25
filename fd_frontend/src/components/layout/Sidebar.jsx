@@ -1,5 +1,5 @@
 // src/components/layout/Sidebar.jsx
-import React from "react";
+
 import { motion } from "framer-motion";
 import { NavLink } from "react-router-dom";
 import { Home, BarChart2, Settings } from "lucide-react";
@@ -20,7 +20,8 @@ export function Sidebar() {
       transition={{ duration: 0.5 }}
       className="h-screen w-64 bg-blue-900 text-white flex flex-col shadow-xl"
     >
-      <div className="text-yellow-400 text-2xl font-bold px-6 py-4 border-b border-blue-700">
+      <div className="flex items-center gap-3 text-yellow-400 text-2xl font-bold px-6 py-4 border-b border-blue-700">
+        <img src="/uco.png" alt="UCO Logo" className="h-8 w-8 object-contain" />
         UCO Bank
       </div>
       <nav className="flex-1 px-4 py-6 space-y-2">

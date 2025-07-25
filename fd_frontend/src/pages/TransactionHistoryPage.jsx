@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
 import { fetchTransactions } from "../api/transaction";
@@ -6,43 +6,56 @@ import { Transaction } from "../models/Transaction";
 
 export default function TransactionHistoryPage() {
   const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading]           = useState(true);
+  const [currentPage, setCurrentPage]   = useState(1);
   const [entriesPerPage, setEntriesPerPage] = useState(10);
 
-  // calculate rows per viewport
-  useEffect(() => {
-    const rowHeight   = 48;
-    const offset      = 250;
-    const rows        = Math.max(5, Math.floor((window.innerHeight - offset) / rowHeight));
-    setEntriesPerPage(rows);
-  }, []);
-
-  // fetch from Express
-  useEffect(() => {
+  // A memoized function to load transaction data from the server.
+  const loadTransactions = useCallback(() => {
+    setLoading(true);
     fetchTransactions()
       .then(data => setTransactions(data.map(tx => new Transaction(tx))))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
+  // Load transactions when the page first mounts.
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
+  
+  // Dynamically set the number of rows based on screen height.
+  useEffect(() => {
+    const rowHeight   = 48; // Approximate height of a table row
+    const offset      = 250; // Height of other elements like topbar, header, etc.
+    const rows        = Math.max(5, Math.floor((window.innerHeight - offset) / rowHeight));
+    setEntriesPerPage(rows);
+  }, []);
+
+  // Pagination logic
   const totalPages = Math.ceil(transactions.length / entriesPerPage);
   const startIdx   = (currentPage - 1) * entriesPerPage;
   const pageTx     = transactions.slice(startIdx, startIdx + entriesPerPage);
 
+  // Helper function to format the timestamp for display.
   const formatTime = (tx) => {
-    if (tx.created_at) {
-      return new Date(tx.created_at).toLocaleString();
-    }
-    // ISO‐string fallback
+    if (tx.created_at) return new Date(tx.created_at).toLocaleString();
     if (typeof tx.time === "string" && !isNaN(Date.parse(tx.time))) {
       return new Date(tx.time).toLocaleString();
     }
-    // hour fallback
-    if (typeof tx.time === "number") {
-      return `${tx.time}:00`;
-    }
+    if (typeof tx.time === "number") return `${tx.time}:00`;
     return tx.time ?? "—";
+  };
+
+  // Helper function to determine the text color based on risk level.
+  const getRiskColor = (level) => {
+    if (!level) return "text-gray-600";
+    switch (level.toLowerCase()) {
+      case "high": return "text-red-600";
+      case "medium": return "text-yellow-500";
+      case "low": return "text-green-600";
+      default: return "text-gray-600";
+    }
   };
 
   return (
@@ -51,7 +64,17 @@ export default function TransactionHistoryPage() {
       <div className="flex-1 flex flex-col">
         <Topbar />
         <main className="p-6 bg-white min-h-screen">
-          <h1 className="text-2xl font-bold text-blue-900 mb-4">Recent Transactions</h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold text-blue-900">Recent Transactions</h1>
+            <button
+              onClick={loadTransactions}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
           {loading ? (
             <p className="text-gray-500">Loading...</p>
           ) : (
@@ -72,25 +95,14 @@ export default function TransactionHistoryPage() {
                   <tbody>
                     {pageTx.length > 0 ? (
                       pageTx.map((tx, i) => (
-                        <tr key={i} className="text-center border-t">
+                        <tr key={tx.id || i} className="text-center border-t">
                           <td className="px-4 py-2">{tx.receiver}</td>
-
-                          {/* Amount */}
-                          <td className={`px-4 py-2 font-semibold ${
-                            tx.risk_level === "high"
-                              ? "text-red-600"
-                              : tx.risk_level === "med"
-                              ? "text-yellow-500"
-                              : "text-green-600"
-                          }`}>
+                          <td className={`px-4 py-2 font-semibold ${getRiskColor(tx.risk_level)}`}>
                             ₹ {tx.amount.toLocaleString()}
                           </td>
-
-                          {/* Time */}
                           <td className="px-4 py-2">{formatTime(tx)}</td>
-
-                          <td className="px-4 py-2">
-                            {tx.is_fraud === "true" ? "🚩" : "✔️"}
+                          <td className="px-4 py-2 text-xl">
+                            {String(tx.is_fraud) === 'true' ? "🚩" : "✔️"}
                           </td>
                           <td className="px-4 py-2">{tx.risk_level}</td>
                           <td className="px-4 py-2">{tx.ip_address}</td>
@@ -98,34 +110,16 @@ export default function TransactionHistoryPage() {
                         </tr>
                       ))
                     ) : (
-                      <tr>
-                        <td colSpan="7" className="py-4 text-center">
-                          No transactions found.
-                        </td>
-                      </tr>
+                      <tr><td colSpan="7" className="py-4 text-center">No transactions found.</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
-              {/* Pagination */}
+              
               <div className="mt-4 flex justify-center gap-4">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 bg-blue-100 rounded disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <span className="text-blue-900 font-semibold">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-blue-100 rounded disabled:opacity-50"
-                >
-                  Next
-                </button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 bg-blue-100 rounded disabled:opacity-50">Previous</button>
+                <span className="text-blue-900 font-semibold">Page {currentPage} of {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className="px-4 py-2 bg-blue-100 rounded disabled:opacity-50">Next</button>
               </div>
             </>
           )}

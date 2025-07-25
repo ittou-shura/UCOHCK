@@ -18,24 +18,24 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-// Sample card data
-const card = 
-  {
-    id: 1,
-    balance: "₹502,756",
-    holder: "John Doe",
-    valid: "12/22",
-    theme: "from-blue-600 to-blue-400",
-  };
+// --- MODIFIED: Card balance updated ---
+const card = {
+  id: 1,
+  balance: "₹5,02,756",
+  holder: "John Doe",
+  valid: "12/26",
+  theme: "from-blue-600 to-blue-400",
+};
 
+// --- MODIFIED: Graph data now shows a decrease from 7 lakhs to ~5 lakhs ---
 const balanceData = [
-  { day: "Mon", balance: 500 },
-  { day: "Tue", balance: 650 },
-  { day: "Wed", balance: 700 },
-  { day: "Thu", balance: 550 },
-  { day: "Fri", balance: 800 },
-  { day: "Sat", balance: 750 },
-  { day: "Sun", balance: 900 },
+  { day: "Mon", balance: 700000 },
+  { day: "Tue", balance: 685000 },
+  { day: "Wed", balance: 650000 },
+  { day: "Thu", balance: 610000 },
+  { day: "Fri", balance: 575000 },
+  { day: "Sat", balance: 540000 },
+  { day: "Sun", balance: 502756 },
 ];
 
 export default function DashboardPage() {
@@ -46,7 +46,8 @@ export default function DashboardPage() {
     fetchTransactions()
       .then((data) => {
         const txList = data.map((tx) => new Transaction(tx));
-        txList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        // Sort by the 'time' property from your CSV data
+        txList.sort((a, b) => new Date(b.time) - new Date(a.time));
         setRecentTxns(txList.slice(0, 4)); // get top 4
       })
       .catch((err) => console.error("Failed to load transactions", err));
@@ -116,19 +117,21 @@ export default function DashboardPage() {
                         <div>
                           <p className="text-sm font-medium">{tx.receiver}</p>
                           <p className="text-xs text-gray-500">
-                            {new Date(tx.created_at).toLocaleDateString()}
+                            {new Date(tx.time).toLocaleDateString()}
                           </p>
                         </div>
                         <p
                           className={`font-semibold ${
-                            tx.risk_level === "high"
+                            String(tx.is_fraud) === 'true'
                               ? "text-red-500"
-                              : tx.risk_level === "med"
+                              : tx.risk_level?.toLowerCase() === "medium"
                               ? "text-yellow-500"
-                              : "text-green-500"
+                              : tx.risk_level?.toLowerCase() === "low"
+                              ? "text-green-500"
+                              : "text-gray-500"
                           }`}
                         >
-                          ₹ {tx.value}
+                          ₹ {tx.amount.toLocaleString()}
                         </p>
                       </li>
                     ))
@@ -152,7 +155,9 @@ export default function DashboardPage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="day" />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip
+                      formatter={(value) => `₹${value.toLocaleString()}`}
+                    />
                     <Line
                       type="monotone"
                       dataKey="balance"
